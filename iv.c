@@ -40,12 +40,11 @@
 #define TMP_DIR "/tmp"
 
 
-/* -------------------- DATA STRUCTURES -------------------- */
 
 typedef struct {
-  char* original_path; /* The original image path */
-  char* thumb_path;    /* The generated thumbnail path */
-  int   generated;     /* 1 if this program created thumb_path => remove on exit */
+  char* original_path; // The original image path
+  char* thumb_path;    // The generated thumbnail path
+  int   generated;     // 1 if this program created thumb_path => remove on exit
 } ImageEntry;
 
 typedef struct {
@@ -74,10 +73,10 @@ enable_raw_mode(void)
   }
   struct termios raw = g_origTermios;
 
-  /* Turn off canonical mode and echo, so we get single key presses. */
+  // Turn off canonical mode and echo, so we get single key presses
   raw.c_lflag &= ~(ICANON | ECHO);
 
-  /* Wait for 1 byte, no timeout. */
+  // Wait for 1 byte, no timeout
   raw.c_cc[VMIN]  = 1;
   raw.c_cc[VTIME] = 0;
 
@@ -86,11 +85,10 @@ enable_raw_mode(void)
     exit(EXIT_FAILURE);
   }
 
-  /* Restore on exit. */
+  // Restore on exit
   atexit(disable_raw_mode);
 }
 
-/* Read one keystroke (ASCII). If you want arrow keys, you'd parse ESC sequences. */
 static int
 read_keypress(void)
 {
@@ -102,7 +100,9 @@ read_keypress(void)
 }
 
 
+//
 /* -------------------- IMAGE LOADING -------------------- */
+//
 
 static void
 add_image_entry(ImageList* list, const char* path)
@@ -127,7 +127,7 @@ is_directory(const char* path)
   return S_ISDIR(st.st_mode);
 }
 
-/* Load all regular files from a directory (skip hidden). */
+// Load all regular files from a directory (skip hidden).
 static int
 load_images_from_dir(const char* dir_path, ImageList* list)
 {
@@ -146,29 +146,26 @@ load_images_from_dir(const char* dir_path, ImageList* list)
     snprintf(fullpath, sizeof(fullpath), "%s/%s", dir_path, de->d_name);
 
     struct stat st;
-    if (stat(fullpath, &st) == 0 && S_ISREG(st.st_mode)) {
+    if (stat(fullpath, &st) == 0 && S_ISREG(st.st_mode))
       add_image_entry(list, fullpath);
-    }
   }
   closedir(d);
   return 0;
 }
 
-/* Load images from a list of file paths. */
 static void
 load_images_from_argv(int count, char** paths, ImageList* list)
 {
-  for (int i = 0; i < count; i++) {
+  for (int i = 0; i < count; i++)
     add_image_entry(list, paths[i]);
-  }
 }
 
 
 /* -------------------- THUMBNAIL & FOCUS GENERATION -------------------- */
 
-/* 
- * Generate a thumbnail for 'orig' into /tmp/ with name "iv_<orig>.thumb.png".
- */
+// 
+// Generate a thumbnail for 'orig' into /tmp/ with name "iv_<orig>.thumb.png".
+//
 static int
 generate_thumbnail(const char* orig, char** thumb_out)
 {
@@ -199,7 +196,7 @@ generate_thumbnail(const char* orig, char** thumb_out)
   return 0;
 }
 
-/* Generate a focus image of size FOCUS_WIDTH x FOCUS_HEIGHT. */
+// Generate a focus image of size FOCUS_WIDTH x FOCUS_HEIGHT.
 static int
 generate_focus(const char* orig, char** focus_out)
 {
@@ -221,6 +218,7 @@ generate_focus(const char* orig, char** focus_out)
     fprintf(stderr, "Failed to create focus image for %s\n", orig);
     return -1;
   }
+
   *focus_out = strdup(tmp);
   if (!*focus_out) {
     fprintf(stderr, "Out of memory for focus path.\n");
@@ -249,24 +247,22 @@ b64encode_path(const char* path)
     int pad        = 0;
     for (int n = 0; n < 3; n++) {
       v <<= 8;
-      if (i < len) {
+      if (i < len)
         v |= (unsigned char)path[i++];
-      } else {
+      else
         pad++;
-      }
     }
     out[j++] = tbl[(v >> 18) & 0x3F];
     out[j++] = tbl[(v >> 12) & 0x3F];
-    if (pad < 2) {
+    if (pad < 2)
       out[j++] = tbl[(v >> 6) & 0x3F];
-    } else {
+    else
       out[j++] = '=';
-    }
-    if (pad < 1) {
+
+    if (pad < 1)
       out[j++] = tbl[v & 0x3F];
-    } else {
+    else
       out[j++] = '=';
-    }
   }
   out[j] = '\0';
   return out;
@@ -299,14 +295,14 @@ display_thumbnail_kitty(const char* thumb_path)
   free(b64);
 }
 
-/* For focus, we do a naive 80x24. */
 static void
 display_focus_kitty(const char* focus_path)
 {
   if (!focus_path)
     return;
 
-  int c = 80, r = 24; /* could read real TTY size if you want */
+  // For focus, do a naive 80x24.
+  int c = 80, r = 24; 
 
   char* b64 = b64encode_path(focus_path);
   if (!b64)
@@ -316,10 +312,10 @@ display_focus_kitty(const char* focus_path)
   free(b64);
 }
 
-/* Tells kitty to remove all images from the screen. */
 static void
 kitty_delete_all(void)
 {
+  // Tell kitty to remove all images from the screen.
   printf("\x1b_Ga=d\x1b\\");
   fflush(stdout);
 }
@@ -329,24 +325,22 @@ kitty_delete_all(void)
 
 static int scroll_offset = 0;
 
-/*
- * Makes sure the selected image is visible. If not, adjust scroll_offset.
- * We pass the entire list so we can see list->count.
- */
+//
+// Makes sure the selected image is visible. If not, adjust scroll_offset.
+// Pass the entire list so we can see list->count.
+//
 static void
 adjust_scroll_for_selection(const ImageList* list, int selected, int grid_cols)
 {
   struct winsize ws;
-  if (ioctl(STDOUT_FILENO, TIOCGWINSZ, &ws) != 0) {
+  if (ioctl(STDOUT_FILENO, TIOCGWINSZ, &ws) != 0)
     ws.ws_row = 24;
-  }
 
-  /* Each row is THUMB_ROWS plus SPACING_ROWS. We'll define row_height as: */
   int row_height = THUMB_ROWS + SPACING_ROWS;
   if (row_height < 1)
     row_height = 1;
 
-  /* how many rows fit on screen: */
+  // How many rows fit on screen:
   int visible_rows = ws.ws_row / row_height;
   if (visible_rows < 1)
     visible_rows = 1;
@@ -362,19 +356,19 @@ adjust_scroll_for_selection(const ImageList* list, int selected, int grid_cols)
 
   if (scroll_offset < 0)
     scroll_offset = 0;
-  if (scroll_offset > total_rows - visible_rows) {
+
+  if (scroll_offset > total_rows - visible_rows)
     scroll_offset = total_rows - visible_rows;
-  }
+
   if (scroll_offset < 0)
     scroll_offset = 0;
 }
 
-/*
- * Render only the thumbnails that are within the visible rows. 
- * Place them with horizontal spacing, vertical spacing. 
- * Draw a star under the selected image in the spacing row. 
- * Then at the bottom, print "Selected: <filename>".
- */
+//
+// Render only the thumbnails that are within the visible rows. 
+// Place them with horizontal spacing, vertical spacing. 
+// Draw a star under the selected image in the spacing row. 
+//
 static void
 render_grid(const ImageList* list, int grid_cols, int selected)
 {
@@ -393,13 +387,14 @@ render_grid(const ImageList* list, int grid_cols, int selected)
   int total_rows = (list->count + grid_cols - 1) / grid_cols;
   if (scroll_offset < 0)
     scroll_offset = 0;
-  if (scroll_offset > total_rows - visible_rows) {
+
+  if (scroll_offset > total_rows - visible_rows)
     scroll_offset = total_rows - visible_rows;
-  }
+
   if (scroll_offset < 0)
     scroll_offset = 0;
 
-  /* Clear screen, go home. */
+  // Clear screen, go home.
   printf("\x1b[2J\x1b[H");
 
   int start_row = scroll_offset;
@@ -414,7 +409,7 @@ render_grid(const ImageList* list, int grid_cols, int selected)
       if (i >= (int)list->count)
         break;
 
-      /* Compute the top-left cell in the terminal. */
+      // Compute the top-left cell in the terminal.
       int screen_row = (row - start_row) * row_height + 1;
       int screen_col = col * col_width + 1;
       printf("\x1b[%d;%dH", screen_row, screen_col);
@@ -503,6 +498,7 @@ remove_thumbnails(ImageList* list)
 {
   if (!list || !list->entries)
     return;
+
   for (size_t i = 0; i < list->count; i++) {
     if (list->entries[i].generated && list->entries[i].thumb_path) {
       remove(list->entries[i].thumb_path);
@@ -600,25 +596,25 @@ main(int argc, char** argv)
       } else if (ch == '\n' || ch == '\r') {
         mode = MODE_FOCUS;
       }
-      /* ignore other keys */
+      // Ignore other keys
 
     } else if (mode == MODE_FOCUS) {
-      // show the large focus view for the selected image
+      // Show the large focus view for the selected image
       focus_view(list.entries[selected].original_path);
-      // return to grid mode
+      // Return to grid mode
       mode = MODE_GRID;
     }
   }
 
   disable_raw_mode();
-  /* Remove images from screen. */
+  // Remove images from screen
   kitty_delete_all();
 
-  /* Remove any temp thumbnails. */
+  // Delete thumbnail files
   remove_thumbnails(&list);
   free_imagelist(&list);
 
-  /* Clear screen on exit. */
+  // Clear screen
   printf("\x1b[2J\x1b[H");
   fflush(stdout);
 
